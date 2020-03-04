@@ -114,7 +114,7 @@ const addEmployee = function (){
                     for(let i = 0; i < result2.length; i++){
                         roleArray[i] = result2[i].roles;
                     }
-                    console.log(roleArray);
+                    //console.log(roleArray);
                     insertEmployee(empArray,roleArray, nameObjectArray);
                 }
             )
@@ -126,12 +126,44 @@ const addEmployee = function (){
         {
             name: "fname",
             type: "input",
-            message: "Enter the first name: "
+            message: "Enter the first name: ",
+            validate: function(val) {
+                // The users must enter a first name
+                let isValid = val === "" ? false : true;
+                if(!isValid)
+                {
+                    console.log(chalk.red("\n*** Must enter a first name! ***\n"));
+                    return isValid; 
+                }
+                isValid = /\S/.test(val) ? true : false;
+                //isValid = val.trim().isEmpty() ? false : true;
+                if(!isValid)
+                {
+                    console.log(chalk.red("\n*** Must enter a first name! ***\n")); 
+                }
+                return isValid;
+            }
         },
         {
             name: "lname",
             type: "input",
-            message: "Enter the last name: "
+            message: "Enter the last name: ",
+            validate: function(val) {
+                // The users must enter a last name
+                let isValid = val === "" ? false : true;
+                if(!isValid)
+                {
+                    console.log(chalk.red("\n*** Must enter a last name! ***\n"));
+                    return isValid; 
+                }
+                isValid = /\S/.test(val) ? true : false;
+                //isValid = val.trim().isEmpty() ? false : true;
+                if(!isValid)
+                {
+                    console.log(chalk.red("\n*** Must enter a last name! ***\n")); 
+                }
+                return isValid;
+            }
         },
         {
             name: "role",
@@ -157,14 +189,11 @@ const addEmployee = function (){
                 }
                
                 let roleID = result[0].id;
-                //console.log(roleID);
 
                 if(answers.manager === "NONE")
                 {
-                    
                     var managerFirstName = answers.manager;
                     var managerLastName = answers.manager;
-                    console.log("inside if " + managerFirstName + " " + managerLastName);
                 }
                 else{
 
@@ -176,9 +205,6 @@ const addEmployee = function (){
                         }
                     }
 
-                    console.log("Just Before ***  " + fName + lName);
-
-                    // var managerFullName = answers.manager.split(" ");
                     var managerFirstName = fName;
                     var managerLastName = lName;
                 }
@@ -191,7 +217,7 @@ const addEmployee = function (){
                             throw err;
                         }
 
-                        console.log(result);
+                        //console.log(result);
                         
                         managerID = (managerFirstName === "NONE" &&  managerLastName === "NONE") ? null : result[0].id;
                         //console.log(managerID);
@@ -209,7 +235,7 @@ const addEmployee = function (){
                                     throw err;
                                 }
                                 
-                                console.log(boxen(chalk.red("\n*** Employee successfully added! ***\n"), {padding:0}));
+                                console.log(boxen(chalk.green("\n*** Employee successfully added! ***\n"), {padding:0}));
 
                                 promptUser();
                             }
@@ -231,7 +257,7 @@ const addRole = function(){
             for(let i = 0; i < result1.length; i++){
                 deptArr[i] = result1[i].name;
             }
-            console.log(deptArr);
+            //console.log(deptArr);
             insertRole(deptArr);
         }
     )
@@ -242,7 +268,23 @@ function insertRole(deptArr){
         {
             name: "title",
             type: "input",
-            message: "What is the Title of the role that you would like to add? "
+            message: "What is the Title of the role that you would like to add? ",
+            validate: function(val) {
+                // The users must enter a role name
+                let isValid = val === "" ? false : true;
+                if(!isValid)
+                {
+                    console.log(chalk.red("\n*** Must enter a role name! ***\n"));
+                    return isValid; 
+                }
+                isValid = /\S/.test(val) ? true : false;
+                //isValid = val.trim().isEmpty() ? false : true;
+                if(!isValid)
+                {
+                    console.log(chalk.red("\n*** Must enter a role name! ***\n")); 
+                }
+                return isValid;
+            }
         },
         {
             name: "salary",
@@ -272,7 +314,7 @@ function insertRole(deptArr){
                     if(err){
                         throw err;
                     }
-                    console.log(result[0].id);
+                    //console.log(result[0].id);
                     let deptID = result[0].id;
 
                     // Now that we have the id of the department, we are ready to insert into the role tbl
@@ -288,7 +330,7 @@ function insertRole(deptArr){
                                 throw err;
                             }
                             
-                            console.log(boxen(chalk.red("\n*** Role successfully added! ***\n"), {padding:0}));
+                            console.log(boxen(chalk.green("\n*** Role successfully added! ***\n"), {padding:0}));
                             promptUser();
                         }
                     )
@@ -306,7 +348,23 @@ const addDepartment = function (){
         {
             name: "deptName",
             type: "input",
-            message: "What is the name of the new Department that you would like to add? "
+            message: "What is the name of the new Department that you would like to add? ",
+            validate: function(val) {
+                // The users must enter a department name
+                let isValid = val === "" ? false : true;
+                if(!isValid)
+                {
+                    console.log(chalk.red("\n*** Must enter a department name! ***\n"));
+                    return isValid; 
+                }
+                isValid = /\S/.test(val) ? true : false;
+                //isValid = val.trim().isEmpty() ? false : true;
+                if(!isValid)
+                {
+                    console.log(chalk.red("\n*** Must enter a department name! ***\n")); 
+                }
+                return isValid;
+            }
         }
     ).then(function(answer){
         connection.query(
@@ -318,8 +376,8 @@ const addDepartment = function (){
                 if(err){
                     throw err;
                 }
-                console.log(result);
-                console.log(boxen(chalk.red("\n*** Department successfully added! ***\n"), {padding:0}));
+                //console.log(result);
+                console.log(boxen(chalk.green("\n*** Department successfully added! ***\n"), {padding:0}));
                 promptUser();
             }
         )
@@ -374,8 +432,8 @@ function updateEmpRole(){
                 empDisplayArray.push(result[i].first_name + " " + result[i].last_name);
             }
 
-            console.log(nameObjectArray);
-            console.log(empDisplayArray);
+            //console.log(nameObjectArray);
+            //console.log(empDisplayArray);
 
             connection.query(
                 "SELECT title from ROLE",
@@ -420,7 +478,7 @@ function updateEmpRole(){
                     if(err){
                         throw err;
                     }
-                    console.log(result[0].id);
+                   // console.log(result[0].id);
                     newRoleID = result[0].id;
 
                     for(let i=0; i< nameObjectArray.length; i++){
@@ -431,8 +489,6 @@ function updateEmpRole(){
                         }
                     }
 
-                    console.log("Just Before ***  " + fName + lName);
-
                     connection.query(
                         "UPDATE EMPLOYEE SET role_id = ? where first_name = ? and last_name = ?",
                         [newRoleID, fName, lName],
@@ -441,6 +497,8 @@ function updateEmpRole(){
                                 throw err;
                             }
                             console.log(result);
+                            console.log(boxen(chalk.green("\n*** Successfully Updated Employee's Role! ***\n"), {padding:0}));
+                            promptUser();
                         }
                     )
                 }
