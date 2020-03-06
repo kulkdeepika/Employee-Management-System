@@ -17,6 +17,8 @@ For a business owner, or head of an organization, this application makes it easy
 When the application begins, the user is welcomed and is presented with a list of choices of all of the different things to do. Upon choosing one of th options, related further questions will asked in order to gather all the data needed to fulfil the user's request.
 The user will be shown an appropriate message on completion of the request. Selecting the QUIT option will end the connection to your database.
 
+- `EMS.sql` is the seed file which can be run to pre-populate the tables.
+
 ###### Command to run
 
 `node EmployeeManager.js`
