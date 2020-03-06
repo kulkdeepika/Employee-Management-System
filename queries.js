@@ -3,22 +3,20 @@ const inquirer = require('inquirer');
 const printTable = require("console.table");
 const chalk = require("chalk");
 const boxen = require("boxen");
+const Database = require("./dbOperations.js");
 
-var connection = mysql.createConnection({
+let config = {
     host: "localhost",
     port: 3306,
     user: "root",
     password: "password123",
     database:"EMPLOYEE_MANAGEMENT_SYSTEM"
-});
+};
 
-connection.connect(function(err){
-    if(err){
-        throw err;
-    }
-    console.log(`connected as id ${connection.threadID}`);
-})
+// Creating an instance of the Database class, in order to be able to access its query and close functions
+let handleDB = new Database(config);
 
+// Prompting the options and calling the appropriate functions based on the user selection
 const promptUser = function (){
     inquirer.prompt({
         name: "action",
@@ -31,7 +29,14 @@ const promptUser = function (){
             "Add Department",
             "View Roles",
             "View Departments",
-            "Update Employee Role"
+            "Update Employee Role",
+            "Delete Employee",
+            "Delete Role",
+            "Delete Department",
+            "Update Employee's Manager",
+            "View Employees By Manager",
+            "View Department Budget",
+            "QUIT"
         ]
     }).then(function(answer){
         switch(answer.action){
@@ -63,72 +68,89 @@ const promptUser = function (){
                 updateEmpRole();
             break;
 
+            case "Delete Employee":
+                deleteEmployee();
+            break;
+
+            case "Delete Role":
+                deleteRole();
+            break;
+
+            case "Delete Department":
+                deleteDepartment();
+            break;
+
+            case "Update Employee's Manager":
+                updateEmployeeManager();
+            break;
+
+            case "View Employees By Manager":
+                viewByManager();
+            break;
+
+            case "View Department Budget":
+                viewBudget();
+            break;
+
+            case "QUIT":
+                quit();
+            break;
+
             default:
                 quit();
         }
     })
 } // end of promptUser
 
-const showAllEmployees = function (){
-    var query = connection.query(
-        "SELECT EMPLOYEE.id,EMPLOYEE.first_name,EMPLOYEE.last_name, ROLE.title, ROLE.salary, DEPARTMENT.name as department, concat(e.first_name, ' ' ,e.last_name) as manager from EMPLOYEE join ROLE ON EMPLOYEE.role_id = ROLE.id join DEPARTMENT ON ROLE.department_id = DEPARTMENT.id left outer join EMPLOYEE e ON EMPLOYEE.manager_id = e.id ORDER BY EMPLOYEE.id;",
-        (err, result) => {
-            if(err){
-                throw err;
-            }
+// View all the employee data by JOINING all 3 tables
+const showAllEmployees = async function (){
+    
+    let queryString = "SELECT EMPLOYEE.id,EMPLOYEE.first_name,EMPLOYEE.last_name, ROLE.title, ROLE.salary, DEPARTMENT.name as department, concat(e.first_name, ' ' ,e.last_name) as manager from EMPLOYEE join ROLE ON EMPLOYEE.role_id = ROLE.id join DEPARTMENT ON ROLE.department_id = DEPARTMENT.id left outer join EMPLOYEE e ON EMPLOYEE.manager_id = e.id ORDER BY EMPLOYEE.id;";
+  
+    await getAndDisplay(queryString);
+    promptUser();
 
-            console.log("\n" + printTable.getTable(result));
-            promptUser();
-        }
-    )
-}// end of showAllEmployees
+}// END of showAllEmployees
 
-const addEmployee = function (){
+// This function is responsible to insert a new employee into the employee table
+const addEmployee = async function (){
     let empArray = [];
     let roleArray = [];
-    connection.query(
-        "SELECT first_name, last_name from EMPLOYEE;",
-        function(err,result1){
-            if(err){
-                throw err;
-            }
-            let nameObjectArray = [];
 
-            for(let i=0; i<result1.length; i++){
+    // This part of the code queries and creates an array of all employees and roles to present as option
+    //list to the user so that he can pick the manager and role of the new employee
+    let queryString = "SELECT first_name, last_name from EMPLOYEE;";
+    let result = await handleDB.query(queryString);
 
-                nameObjectArray.push({fullName : result1[i].first_name + " " + result1[i].last_name,
-                                      firstName : result1[i].first_name,
-                                      lastName : result1[i].last_name});
-                empArray.push(result1[i].first_name + " " + result1[i].last_name);
-            }
-            empArray.unshift("NONE");
-            //console.log(empArray);
+    let nameObjectArray = [];
+    for(let i=0; i<result.length; i++){
 
-            connection.query(
-                "SELECT title as roles from ROLE;",
-                function(err,result2){
-                    if (err){
-                        throw err;
-                    }
-                    console.log(result2);
-                    for(let i = 0; i < result2.length; i++){
-                        roleArray[i] = result2[i].roles;
-                    }
-                    //console.log(roleArray);
-                    insertEmployee(empArray,roleArray, nameObjectArray);
-                }
-            )
-        }
-    )
-    
-    const insertEmployee = function(empArray, roleArray, nameObjectArray){
+        nameObjectArray.push({fullName : result[i].first_name + " " + result[i].last_name,
+                              firstName : result[i].first_name,
+                              lastName : result[i].last_name});
+        empArray.push(result[i].first_name + " " + result[i].last_name);
+    }
+    empArray.unshift("NONE");
+
+    queryString = "SELECT title as roles from ROLE;";
+    result = await handleDB.query(queryString);
+
+    for(let i = 0; i < result.length; i++){
+        roleArray[i] = result[i].roles;
+    }
+
+    insertEmployee(empArray,roleArray, nameObjectArray);
+}// END of addEmployee
+
+// Called from addEmployee
+const insertEmployee = function(empArray, roleArray, nameObjectArray){
     inquirer.prompt([
         {
             name: "fname",
             type: "input",
             message: "Enter the first name: ",
             validate: function(val) {
-                // The users must enter a first name
+            // The users must enter a first name
                 let isValid = val === "" ? false : true;
                 if(!isValid)
                 {
@@ -177,90 +199,56 @@ const addEmployee = function (){
             message: "Who is the employee's manager ",
             choices: empArray
         }
+    
+    ]).then(async function(answers){
 
-    ]).then(function(answers){
+        queryString = "SELECT id from ROLE where title = ? ;";
+        result = await handleDB.query(queryString, [answers.role]);
+        let roleID = result[0].id;
 
-        connection.query(
-            "SELECT id from ROLE where title = ? ;",
-            [answers.role],
-            function(err,result){
-                if(err){
-                   throw err;
-                }
-               
-                let roleID = result[0].id;
-
-                if(answers.manager === "NONE")
-                {
-                    var managerFirstName = answers.manager;
-                    var managerLastName = answers.manager;
-                }
-                else{
-
-                    for(let i=0; i< nameObjectArray.length; i++){
-                        if(nameObjectArray[i].fullName === answers.manager){
-                            fName = nameObjectArray[i].firstName;
-                            lName = nameObjectArray[i].lastName;
-                            break;
-                        }
-                    }
-
-                    var managerFirstName = fName;
-                    var managerLastName = lName;
-                }
-            
-                let query = connection.query(
-                    "SELECT id from EMPLOYEE where first_name = ? and last_name = ? ;",
-                    [managerFirstName, managerLastName],
-                    function(err, result){
-                        if(err){
-                            throw err;
-                        }
-
-                        //console.log(result);
-                        
-                        managerID = (managerFirstName === "NONE" &&  managerLastName === "NONE") ? null : result[0].id;
-                        //console.log(managerID);
-
-                        let query = connection.query(
-                            "INSERT into EMPLOYEE SET ?",
-                            {
-                                first_name : answers.fname,
-                                last_name : answers.lname,
-                                role_id: roleID,
-                                manager_id: managerID
-                            },
-                            function(err, insertResult){
-                                if(err){
-                                    throw err;
-                                }
-                                
-                                console.log(boxen(chalk.green("\n*** Employee successfully added! ***\n"), {padding:0}));
-
-                                promptUser();
-                            }
-                        )
-                    }) 
-                 
-            })  
-    })
-
-}//end of insertEmployee
-}// end of addEmployee
-
-const addRole = function(){
-
-    connection.query(
-        "SELECT name from DEPARTMENT",
-        function(err, result1){
-            let deptArr = [];
-            for(let i = 0; i < result1.length; i++){
-                deptArr[i] = result1[i].name;
-            }
-            //console.log(deptArr);
-            insertRole(deptArr);
+        if(answers.manager === "NONE")
+        {
+            var managerFirstName = answers.manager;
+            var managerLastName = answers.manager;
         }
-    )
+        else
+        {
+            for(let i=0; i< nameObjectArray.length; i++){
+                if(nameObjectArray[i].fullName === answers.manager){
+                    var managerFirstName = nameObjectArray[i].firstName;
+                    var managerLastName = nameObjectArray[i].lastName;
+                    break;
+                }
+            }
+        }
+
+        queryString = "SELECT id from EMPLOYEE where first_name = ? and last_name = ? ;"
+        result = await handleDB.query(queryString, [managerFirstName, managerLastName]);
+
+        managerID = (managerFirstName === "NONE" &&  managerLastName === "NONE") ? null : result[0].id;
+        // FINAL INSERT after gathering and parsing all the required fields
+        queryString = "INSERT into EMPLOYEE SET ?";
+        result = await handleDB.query(queryString, [{first_name : answers.fname.trim(),last_name : answers.lname.trim(),  role_id: roleID,manager_id: managerID}]);
+
+        console.log(boxen(chalk.green("\n*** Employee successfully added! ***\n"), {padding:0}));
+        promptUser();
+    });
+}// END of insertEmployee
+
+// This function is resposible for adding a new role into the ROLE table
+const addRole = async function(){
+    // Form the array of departments so that user can select what department the new role belongs under
+
+    let queryString = "SELECT name from DEPARTMENT"; 
+    const result = await handleDB.query(queryString);
+
+    let deptArr = [];
+    for(let i = 0; i < result.length; i++){
+        deptArr[i] = result[i].name;
+    }
+
+    insertRole(deptArr);
+}// END of addRole
 
 function insertRole(deptArr){
 
@@ -278,7 +266,6 @@ function insertRole(deptArr){
                     return isValid; 
                 }
                 isValid = /\S/.test(val) ? true : false;
-                //isValid = val.trim().isEmpty() ? false : true;
                 if(!isValid)
                 {
                     console.log(chalk.red("\n*** Must enter a role name! ***\n")); 
@@ -305,44 +292,22 @@ function insertRole(deptArr){
             message: "Which Department does this role belong to? ",
             choices: deptArr
         }
-    ]).then(function(answers){
+    ]).then(async function(answers){
 
-            connection.query(
-                "SELECT id from DEPARTMENT where name = ?",
-                [answers.department],
-                function(err, result){
-                    if(err){
-                        throw err;
-                    }
-                    //console.log(result[0].id);
-                    let deptID = result[0].id;
+        let queryString = "SELECT id from DEPARTMENT where name = ?";
+        let result = await handleDB.query(queryString, [answers.department]);
+        let deptID = result[0].id;
 
-                    // Now that we have the id of the department, we are ready to insert into the role tbl
-                    connection.query(
-                        "INSERT into ROLE SET ?",
-                        {
-                            title: answers.title,
-                            salary: answers.salary,
-                            department_id: deptID
-                        },
-                        function(err, result){
-                            if(err){
-                                throw err;
-                            }
-                            
-                            console.log(boxen(chalk.green("\n*** Role successfully added! ***\n"), {padding:0}));
-                            promptUser();
-                        }
-                    )
-                })
-            
+        //FINAL INSERT after gathering all the required inputs
+        queryString = "INSERT into ROLE SET ?";
+        result = await handleDB.query(queryString, [{title: answers.title.trim(),salary: answers.salary.trim(),department_id: deptID}]);
+
+        console.log(boxen(chalk.green("\n*** Role successfully added! ***\n"), {padding:0}));
+        promptUser();
     })//end of .then
+}//END of insertRole insertRole
 
-}// insertRole
-
-}// end of addRole
-
-
+// This function is responsible for inserting a new department in the DEPARTMENT Table
 const addDepartment = function (){
     inquirer.prompt(
         {
@@ -366,150 +331,323 @@ const addDepartment = function (){
                 return isValid;
             }
         }
-    ).then(function(answer){
-        connection.query(
-            "INSERT into DEPARTMENT SET ?",
-            {
-                name : answer.deptName
-            },
-            function(err,result){
-                if(err){
-                    throw err;
-                }
-                //console.log(result);
-                console.log(boxen(chalk.green("\n*** Department successfully added! ***\n"), {padding:0}));
-                promptUser();
-            }
-        )
-    })
+    ).then(async function(answer){
 
+        queryString = "INSERT into DEPARTMENT SET ?";
+        let result = await handleDB.query(queryString,[{name : answer.deptName.trim()}]);
+        console.log(boxen(chalk.green("\n*** Department successfully added! ***\n"), {padding:0}));
+        promptUser();
+    })
 }//End of addDepartment
 
-const viewRoles = function(){
-    connection.query(
-        "SELECT * from ROLE",
-        function(err, result){
-            if(err){
-                throw err;
-            }
-            
-            console.log(printTable.getTable(result));
-        }
-    )
+const viewRoles = async function(){
+    let queryString = "SELECT * from ROLE";
+    await getAndDisplay(queryString);
+    promptUser();
 }// End of viewRoles
 
+const viewDepartments = async function(){
+    let queryString = "SELECT * from DEPARTMENT";
+    await getAndDisplay(queryString);
+    promptUser();
+}// End of viewDepartment
 
-const viewDepartments = function(){
-    connection.query(
-        "SELECT * from DEPARTMENT",
-        function(err, result){
-            if(err){
-                throw err;
-            }
-            
-            console.log(printTable.getTable(result));
-        }
-    )
-}
+// This function is responsible for updating the role of an employee
+const updateEmpRole = async function(){
 
-function updateEmpRole(){
+    //This part of the code forms an array of names to display to the user, and also creates a key-val pair
+    //So that the first name and last name can be effectively retrived after user chooses a name 
+    let queryString = "SELECT first_name, last_name from EMPLOYEE;";
+    let result = await handleDB.query(queryString);
 
-    connection.query(
-        "SELECT first_name, last_name from EMPLOYEE;",
-        function(err, result){
-            if(err){
-                throw err;
-            }
-            let nameObjectArray = [];
-            let empDisplayArray = [];
-            let roleArr = [];
-            //console.log(result);
-            for(let i=0; i<result.length; i++){
+    let nameObjectArray = [];
+    let empDisplayArray = [];
+    let roleArr = [];
 
-                nameObjectArray.push({fullName : result[i].first_name + " " + result[i].last_name,
-                                      firstName : result[i].first_name,
-                                      lastName : result[i].last_name});
-                empDisplayArray.push(result[i].first_name + " " + result[i].last_name);
-            }
-
-            //console.log(nameObjectArray);
-            //console.log(empDisplayArray);
-
-            connection.query(
-                "SELECT title from ROLE",
-                function(err, results){
-                    if(err){
-                        throw err;
-                    }
-
-                    console.log(results);
-                    for(let i = 0; i< results.length; i++){
-                        roleArr[i] = results[i].title;
-                    }
-                    console.log(roleArr);
-                    changeRole(empDisplayArray, roleArr,nameObjectArray);
-                }
-            )
-        }
-    )
-
-    function changeRole(empDisplayArray, roleArr, nameObjectArray){
-        inquirer.prompt([
-            {
-                name: "empName",
-                type: "list",
-                message: "What is the name of the Employee whose Role you would like tp Update?",
-                choices: empDisplayArray
-            },
-            {
-                name: "newRole",
-                type: "list",
-                message: "What will be the Employee's new Role? ",
-                choices: roleArr
-            }
-        ]).then(function(answers){
-            let newRoleID;
-            let fName;
-            let lName;
-            connection.query(
-                "SELECT id from ROLE where title = ?",
-                [answers.newRole],
-                function(err, result){
-                    if(err){
-                        throw err;
-                    }
-                   // console.log(result[0].id);
-                    newRoleID = result[0].id;
-
-                    for(let i=0; i< nameObjectArray.length; i++){
-                        if(nameObjectArray[i].fullName === answers.empName){
-                            fName = nameObjectArray[i].firstName;
-                            lName = nameObjectArray[i].lastName;
-                            break;
-                        }
-                    }
-
-                    connection.query(
-                        "UPDATE EMPLOYEE SET role_id = ? where first_name = ? and last_name = ?",
-                        [newRoleID, fName, lName],
-                        function(err, result){
-                            if(err){
-                                throw err;
-                            }
-                            console.log(result);
-                            console.log(boxen(chalk.green("\n*** Successfully Updated Employee's Role! ***\n"), {padding:0}));
-                            promptUser();
-                        }
-                    )
-                }
-            )
-        })
+    for(let i=0; i<result.length; i++){
+        nameObjectArray.push({fullName : result[i].first_name + " " + result[i].last_name,
+                                firstName : result[i].first_name,
+                                lastName : result[i].last_name});
+        empDisplayArray.push(result[i].first_name + " " + result[i].last_name);
     }
-}
-function quit(){}
+
+    queryString = "SELECT title from ROLE;";
+    result = await handleDB.query(queryString);
+    for(let i = 0; i< result.length; i++){
+        roleArr[i] = result[i].title;
+    }
+    changeRole(empDisplayArray, roleArr,nameObjectArray);
+}//End of updateEmpRole
+
+function changeRole(empDisplayArray, roleArr, nameObjectArray){
+    inquirer.prompt([
+        {
+            name: "empName",
+            type: "list",
+            message: "What is the name of the Employee whose Role you would like tp Update?",
+            choices: empDisplayArray
+        },
+        {
+            name: "newRole",
+            type: "list",
+            message: "What will be the Employee's new Role? ",
+            choices: roleArr
+        }
+    ]).then(async function(answers){
+        let newRoleID;
+        let fName;
+        let lName;
+
+        let queryString = "SELECT id from ROLE where title = ?";
+        let result = await handleDB.query(queryString,[answers.newRole]);
+        newRoleID = result[0].id;
+
+        for(let i=0; i< nameObjectArray.length; i++){
+            if(nameObjectArray[i].fullName === answers.empName){
+                fName = nameObjectArray[i].firstName;
+                lName = nameObjectArray[i].lastName;
+                break;
+            }
+        }
+
+        queryString = "UPDATE EMPLOYEE SET role_id = ? where first_name = ? and last_name = ?";
+        result = await handleDB.query(queryString, [newRoleID, fName, lName]);
+        console.log(boxen(chalk.green("\n*** Successfully Updated Employee's Role! ***\n"), {padding:0}));
+        promptUser();
+    });
+}//END of changeRole
+
+//This function is responsible for removing an employee from the employee table
+const deleteEmployee = async function(){
+    let displayArr = [];
+    let queryString ="SELECT first_name, last_name from EMPLOYEE;";
+    let result = await handleDB.query(queryString);
+
+    for(let i = 0; i < result.length; i++){
+        displayArr.push(`${result[i].last_name},${result[i].first_name}`);
+    }
+
+    inquirer.prompt(
+        {
+            name: "empName",
+            type: "list",
+            message: "Which Employee's record would you like to delete?",
+            choices: displayArr
+        }).then(async function(answer){
+        let lName = answer.empName.split(",")[0];
+        let fName = answer.empName.split(",")[1];
+
+        queryString = "DELETE from EMPLOYEE where first_name = ? and last_name = ?;"
+        result = await handleDB.query(queryString, [fName, lName]);
+
+        console.log(boxen(chalk.green("\n*** Employee successfully deleted! ***\n"), {padding:0}));
+        promptUser();
+    })
+}// END of deleteEmployee
+
+//This function is responsible for removing a role from the ROLE table
+const deleteRole = async function(){
+    let displayArr = [];
+    let queryString ="SELECT title from ROLE;";
+    let result = await handleDB.query(queryString);
+
+    for(let i = 0; i < result.length; i++){
+        displayArr.push(result[i].title);
+    }
+
+    inquirer.prompt(
+        {
+            name: "roleName",
+            type: "list",
+            message: "Which Role would you like to delete?",
+            choices: displayArr
+        }).then(async function(answer){
+    
+        queryString = "DELETE from ROLE where title = ?;";
+        result = await handleDB.query(queryString, [answer.roleName]);
+
+        console.log(boxen(chalk.green("\n*** Role successfully deleted! ***\n"), {padding:0}));
+        promptUser();
+    })
+}// END of deleteRole
+
+//This function is responsible for removing a department from the DEPARTMENT table
+const deleteDepartment = async function(){
+
+    let deptList = [];
+    let queryString = "SELECT name from DEPARTMENT;";
+    let result = await handleDB.query(queryString);
+
+    for(let i=0; i<result.length; i++){
+        deptList.push(result[i].name);
+    }
+
+    inquirer.prompt(
+        {
+            name: "deptName",
+            type: "list",
+            message: "Which department would you like to delete?",
+            choices: deptList
+        }).then(async function(answer){
+    
+        queryString = "DELETE from DEPARTMENT where name = ?";
+        result = await handleDB.query(queryString, [answer.deptName]);
+
+        console.log(boxen(chalk.green("\n*** Department successfully deleted! ***\n"), {padding:0}));
+        promptUser();
+    })
+}// END of deleteDepartment
+
+//This function shows the total budget of a particular department
+const viewBudget = async function(){
+    let deptArr = [];
+    let queryString = "SELECT name from DEPARTMENT;";
+    let result = await handleDB.query(queryString);
+
+    for(let i=0 ; i<result.length; i++){
+        deptArr.push(result[i].name);
+    }
+    inquirer.prompt(
+        {
+            name: "deptName",
+            type: "list",
+            message: "Enter the name of the department whose budget you would like to view:",
+            choices: deptArr
+        }).then(async function(answer){
+
+            queryString = `SELECT SUM(salary) as budget from EMPLOYEE join ROLE ON EMPLOYEE.role_id = ROLE.id where ROLE.department_id = (SELECT id from DEPARTMENT where name = "${answer.deptName}");`
+            result = await handleDB.query(queryString);
+
+            console.log(boxen(chalk.white(`\n*** The Budget for ${answer.deptName} is ${result[0].budget} ***\n`), {padding:0, borderStyle: 'bold', backgroundColor: 'gray'}));
+
+            promptUser();
+        });
+}// END of viewBudget
+
+// This function is responsible for updating the manager of an employee
+const updateEmployeeManager = async function(){
+
+    let nameObjectArray = [];
+    let empDisplayArray = [];
+
+    let queryString = "SELECT first_name, last_name from EMPLOYEE;";
+    let result = await handleDB.query(queryString);
+
+    for(let i=0; i<result.length; i++){
+        nameObjectArray.push({fullName : result[i].first_name + " " + result[i].last_name,
+                                firstName : result[i].first_name,
+                                lastName : result[i].last_name});
+        empDisplayArray.push(result[i].first_name + " " + result[i].last_name);
+    }
+
+    inquirer.prompt(
+        {
+            name: "empName",
+            type: "list",
+            message: "Select the Employee whose Manager you would like to update",
+            choices: empDisplayArray
+        }).then(async function(answer){
+            empDisplayArray.splice(empDisplayArray.indexOf(answer.empName),1);
+            empDisplayArray.unshift("NONE");
+
+            for(let i=0; i< nameObjectArray.length; i++){
+                if(nameObjectArray[i].fullName === answer.empName){
+                    var empFirstName = nameObjectArray[i].firstName;
+                    var empLastName = nameObjectArray[i].lastName;
+                    break;
+                }
+            }
+
+            inquirer.prompt(
+                {
+                    name: "managerName",
+                    type: "list",
+                    message: "Select the new Manager for this Employee",
+                    choices: empDisplayArray
+                }).then(async function(answer){
+
+                    if(answer.managerName === "NONE")
+                    {
+                        var managerFirstName = answer.managerName;
+                        var managerLastName = answer.managerName;
+                    }
+                    else{
+                        for(let i=0; i< nameObjectArray.length; i++){
+                            if(nameObjectArray[i].fullName === answer.managerName){
+                            var managerFirstName = nameObjectArray[i].firstName;
+                            var managerLastName = nameObjectArray[i].lastName;
+                            break;
+                            }
+                        }
+                    }
+
+                    queryString = "SELECT id from EMPLOYEE where first_name = ? and last_name = ?";
+                    result = await handleDB.query(queryString, [managerFirstName,managerLastName]);
+                    
+                    let manager_id = (managerFirstName === "NONE" &&  managerLastName === "NONE") ? null : result[0].id;
+
+                    queryString = "UPDATE EMPLOYEE SET manager_id = ? where first_name = ? and last_name = ?";
+                    result = await handleDB.query(queryString, [manager_id, empFirstName, empLastName]);
+
+                    console.log(boxen(chalk.green("\n*** Employee's manager successfully Updated! ***\n"), {padding:0}));
+                    promptUser();
+                });
+        })
+}// END updateEmployeeManager
+
+// This function allows the user to view a particular manager's list of team members
+const viewByManager = async function(){
+    let managerArray = [];
+    let nameObjectArray = [];
+    queryString = "SELECT first_name, last_name from EMPLOYEE where id in (SELECT DISTINCT EMPLOYEE.manager_id from EMPLOYEE);";
+    let result = await handleDB.query(queryString);
+    
+    for(let i=0; i<result.length; i++){
+
+        nameObjectArray.push({fullName : result[i].first_name + " " + result[i].last_name,
+                              firstName : result[i].first_name,
+                              lastName : result[i].last_name});
+        managerArray.push(result[i].first_name + " " + result[i].last_name);
+    }
+
+    inquirer.prompt(
+        {
+            name: "managerName",
+            type: "list",
+            message: "Which Manager's team would you like to view?",
+            choices: managerArray
+        }).then(async function(answer){
+            for(let i=0; i< nameObjectArray.length; i++){
+                if(nameObjectArray[i].fullName === answer.managerName){
+                    var empFirstName = nameObjectArray[i].firstName;
+                    var empLastName = nameObjectArray[i].lastName;
+                    break;
+                }
+            }
+
+            queryString = "SELECT id from EMPLOYEE where first_name = ? and last_name = ?;";
+            result = await handleDB.query(queryString, [empFirstName,empLastName]);
+            manager_id = result[0].id;
+
+            queryString = `SELECT concat(first_name, ' ' , last_name) as Employees_under_${empFirstName}_${empLastName} from EMPLOYEE where manager_id = ?;`;
+            result = await handleDB.query(queryString, [manager_id]);
+            console.log("\n" + boxen(printTable.getTable(result)));
+            promptUser();
+        })
+}// end of viewByManager
+
+// This function will close the connection to the database
+async function quit(){
+    const result = await handleDB.close();
+    console.log(boxen(chalk.white("\n*** Thank you for using this Employee Management System! ***\n"), {padding:0, borderStyle: 'bold', backgroundColor: 'gray'}));
+}//End of quit
+
+// This function is responsible for quering and displaying the data on the console
+const getAndDisplay = async function(queryString){
+    const result = await handleDB.query(queryString);
+    console.log("\n" + boxen(printTable.getTable(result)));
+}//END of getAndDisplay
 
 module.exports = {
     promptUser : promptUser,
-    showAllEmployees : showAllEmployees,
-    addEmployee: addEmployee
 }
